@@ -1,0 +1,25 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "HA Health Check is already set up."
+    },
+    "step": {
+      "user": {
+        "title": "HA Health Check",
+        "description": "Every Sunday at 9:00 AM, and when you press Run report, this builds a checklist. Fix items are broken. Check items are worth a look. Office TV, Master Bathroom TV, and the Centauri Carbon stay off the list while they are powered off. The email goes to Matt only. A copy is also saved as a Home Assistant notification."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ignore",
+        "description": "Checked items stay off the checklist. A platform ignores that whole class, including devices that show up later. A device ignores only that one. Energy cost sensors start ignored because no energy price is set. The unused Music Assistant players start ignored. The Control4 players for those rooms are still watched.",
+        "data": {
+          "ignored_platforms": "Platforms",
+          "ignored_devices": "Devices"
+        }
+      }
+    }
+  }
+}

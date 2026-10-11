@@ -1,0 +1,122 @@
+"""Config flow for House Health."""
+
+from __future__ import annotations
+
+import voluptuous as vol
+
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+
+from .const import (
+    DEFAULT_IGNORED_DEVICE_NAMES,
+    DEFAULT_IGNORED_PLATFORMS,
+    DOMAIN,
+    OPT_IGNORED_DEVICES,
+    OPT_IGNORED_PLATFORMS,
+    PLATFORM_LABELS,
+)
+from .report import SKIP
+
+
+def _platform_label(platform: str) -> str:
+    return PLATFORM_LABELS.get(platform, platform.replace("_", " ").title())
+
+
+def _ignore_choices(hass) -> tuple[dict[str, str], dict[str, str]]:
+    """Platforms and devices that can be ignored, from what is unavailable now."""
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    platforms = {platform: _platform_label(platform) for platform in DEFAULT_IGNORED_PLATFORMS}
+    platforms["music_assistant"] = _platform_label("music_assistant")
+    devices: dict[str, str] = {}
+    for state in hass.states.async_all():
+        if state.state != STATE_UNAVAILABLE or state.domain in SKIP:
+            continue
+        entry = ent_reg.async_get(state.entity_id)
+        platform = entry.platform if entry else state.domain
+        platforms[platform] = _platform_label(platform)
+        if entry is None or not entry.device_id:
+            continue
+        device = dev_reg.async_get(entry.device_id)
+        if device is None:
+            continue
+        devices[entry.device_id] = device.name_by_user or device.name or state.name or entry.device_id
+    return (
+        dict(sorted(platforms.items(), key=lambda item: item[1].casefold())),
+        dict(sorted(devices.items(), key=lambda item: item[1].casefold())),
+    )
+
+
+class HouseHealthOptionsFlow(OptionsFlow):
+    """Choose platforms and devices that stay off the checklist."""
+
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Show the ignore lists."""
+        platforms, devices = _ignore_choices(self.hass)
+        saved = self.config_entry.options
+        if user_input is not None:
+            return self.async_create_entry(
+                title="",
+                data={
+                    OPT_IGNORED_PLATFORMS: user_input.get(OPT_IGNORED_PLATFORMS, []),
+                    OPT_IGNORED_DEVICES: user_input.get(OPT_IGNORED_DEVICES, []),
+                },
+            )
+        if OPT_IGNORED_PLATFORMS in saved:
+            platform_default = [item for item in saved.get(OPT_IGNORED_PLATFORMS) or [] if item in platforms]
+        else:
+            platform_default = [item for item in DEFAULT_IGNORED_PLATFORMS if item in platforms]
+        if OPT_IGNORED_DEVICES in saved:
+            device_default = [item for item in saved.get(OPT_IGNORED_DEVICES) or [] if item in devices]
+        else:
+            ent_reg = er.async_get(self.hass)
+            device_default = [
+                device_id
+                for device_id, name in devices.items()
+                if name.casefold() in DEFAULT_IGNORED_DEVICE_NAMES
+            ]
+            for state in self.hass.states.async_all():
+                if (state.name or "").casefold() not in DEFAULT_IGNORED_DEVICE_NAMES:
+                    continue
+                entry = ent_reg.async_get(state.entity_id)
+                if entry and entry.device_id in devices and entry.device_id not in device_default:
+                    device_default.append(entry.device_id)
+        for device_id in saved.get(OPT_IGNORED_DEVICES) or []:
+            if device_id in devices:
+                continue
+            device = dr.async_get(self.hass).async_get(device_id)
+            if device is None:
+                continue
+            devices[device_id] = device.name_by_user or device.name or device_id
+            device_default.append(device_id)
+        schema = vol.Schema(
+            {
+                vol.Optional(OPT_IGNORED_PLATFORMS, default=platform_default): cv.multi_select(platforms),
+                vol.Optional(OPT_IGNORED_DEVICES, default=device_default): cv.multi_select(devices),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)
+
+
+class HouseHealthConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Set up one House Health checklist."""
+
+    VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> HouseHealthOptionsFlow:
+        """Ignore list for devices and platforms."""
+        return HouseHealthOptionsFlow()
+
+    async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Confirm setup. The schedule and ignore list live in the integration."""
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
+        if user_input is not None:
+            return self.async_create_entry(title="HA Health Check", data={})
+        return self.async_show_form(step_id="user", data_schema=vol.Schema({}))

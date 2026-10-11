@@ -1,0 +1,13 @@
+{
+  "domain": "house_health",
+  "name": "HA Health Check",
+  "codeowners": ["@heatvent"],
+  "config_flow": true,
+  "documentation": "https://github.com/heatvent/ha-health-check",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/heatvent/ha-health-check/issues",
+  "loggers": ["custom_components.house_health"],
+  "requirements": [],
+  "version": "1.1.0"
+}

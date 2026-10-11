@@ -1,0 +1,3 @@
+report:
+  name: Generate house health report
+  description: Build the checklist, save it as a notification, and email it to Matt.
