@@ -70,6 +70,8 @@ class HouseHealthRuntime:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up House Health."""
+    if entry.title != "HA Health Check":
+        hass.config_entries.async_update_entry(entry, title="HA Health Check")
     runtime = HouseHealthRuntime(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
