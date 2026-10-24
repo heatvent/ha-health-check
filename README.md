@@ -19,26 +19,34 @@ The integration domain is `house_health`. An existing install updates in place.
 Each report has four sections:
 
 - **Fix** means something that should be working is broken.
-- **Check** means look when you have a minute.
+- **Check** means look when you have a minute. An acknowledged alert stays here so a problem you tapped off does not disappear.
 - **Left as-is** means the item is expected: powered off on purpose, ignored, or a known leftover.
-- **Healthy** means the critical sensors, the email group, and the alerts are in their normal state.
+- **Healthy** means the watched critical sensors, the email group, and the alerts are in their normal state.
 
-The report is emailed to the notify entity set in `custom_components/house_health/const.py`, and a copy is saved as the persistent notification `house_health`.
+The report is emailed to the notify entity chosen in Configure. Until you change it, that is the entity in `custom_components/house_health/const.py`. A copy is saved as the persistent notification `house_health`. The **Last report** sensor keeps that checklist across a restart.
 
 ## Schedule
 
 The report runs every Sunday at 9:00 AM local time. Press **Run report** on the HA Health Check device, or call the `house_health.report` service, to run it sooner. Either one sends the email.
 
+If Home Assistant is off at 9:00 AM, the next startup sends the report when the last one is at least 7 days old. A restart later the same day does not send another email.
+
 ## Ignore list
 
-Open **Settings**, **Devices & services**, **HA Health Check**, **Configure**.
+Open **Settings**, **Devices & services**, **HA Health Check**, **Configure**, **Ignore list**.
 
 - A **platform** ignores that whole class, including devices that show up later.
 - A **device** ignores only that one.
 
 Energy cost sensors start ignored when no energy price is set. The unused Music Assistant players start ignored. Clearing a list and saving keeps it empty. Leaving the options unset uses those defaults.
 
-Critical sensors, the expected-offline devices, and the email recipient live in `const.py`.
+## Email and critical sensors
+
+Open **Settings**, **Devices & services**, **HA Health Check**, **Configure**, **Email and critical sensors**.
+
+The weekly email goes to the notify entity selected there. Critical sensors start as the built-in list. Uncheck a sensor to stop watching it. Saving with none checked watches none. The state that counts as healthy for each sensor stays in the integration.
+
+Expected-offline devices stay in `const.py`.
 
 ## Install
 

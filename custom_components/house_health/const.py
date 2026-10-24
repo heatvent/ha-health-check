@@ -33,6 +33,11 @@ INTENTIONAL_OFF_AUTOMATIONS = frozenset(
 # A missing option means use the default. An empty list means it was cleared on purpose.
 OPT_IGNORED_PLATFORMS = "ignored_platforms"
 OPT_IGNORED_DEVICES = "ignored_devices"
+OPT_EMAIL_ENTITY = "email_entity"
+OPT_CRITICAL_ENTITIES = "critical_entities"
+
+# Startup sends a report when the last one is at least this old.
+REPORT_CATCHUP_DAYS = 7
 
 # No energy price is configured, so these cost sensors stay unavailable.
 DEFAULT_IGNORED_PLATFORMS = ("energy",)

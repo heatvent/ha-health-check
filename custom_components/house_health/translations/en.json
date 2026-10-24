@@ -6,18 +6,34 @@
     "step": {
       "user": {
         "title": "HA Health Check",
-        "description": "Every Sunday at 9:00 AM, and when you press Run report, this builds a checklist. Fix items are broken. Check items are worth a look. Office TV, Master Bathroom TV, and the Centauri Carbon stay off the list while they are powered off. The email goes to Matt only. A copy is also saved as a Home Assistant notification."
+        "description": "Every Sunday at 9:00 AM, and when you press Run report, this builds a checklist. Fix items are broken. Check items are worth a look. Office TV, Master Bathroom TV, and the Centauri Carbon stay off the list while they are powered off. Configure chooses the email recipient and which critical sensors are watched. Until you change it, the email goes to Matt. A copy is also saved as a Home Assistant notification."
       }
     }
   },
   "options": {
     "step": {
       "init": {
+        "title": "HA Health Check",
+        "description": "Choose what to leave off the checklist, and which email and critical sensors to use.",
+        "menu_options": {
+          "ignore": "Ignore list",
+          "watch": "Email and critical sensors"
+        }
+      },
+      "ignore": {
         "title": "Ignore",
         "description": "Checked items stay off the checklist. A platform ignores that whole class, including devices that show up later. A device ignores only that one. Energy cost sensors start ignored because no energy price is set. The unused Music Assistant players start ignored. The Control4 players for those rooms are still watched.",
         "data": {
           "ignored_platforms": "Platforms",
           "ignored_devices": "Devices"
+        }
+      },
+      "watch": {
+        "title": "Email and critical sensors",
+        "description": "The weekly email goes to this notify entity. Critical sensors are Fix when they are missing, unavailable, or not in their normal state. Uncheck a sensor to stop watching it. Saving with none checked watches none. The normal state for each sensor stays in the integration.",
+        "data": {
+          "email_entity": "Email",
+          "critical_entities": "Critical sensors"
         }
       }
     }
