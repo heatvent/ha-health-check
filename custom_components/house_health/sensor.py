@@ -22,7 +22,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Add the last-report sensor."""
-    async_add_entities([HouseHealthSensor(hass.data[DOMAIN][entry.entry_id])])
+    async_add_entities([HouseHealthSensor(entry.runtime_data)])
 
 
 class HouseHealthSensor(RestoreEntity, SensorEntity):
