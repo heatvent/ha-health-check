@@ -5,12 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import logging
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -26,7 +29,6 @@ from .report import (
     Report,
     async_build_report,
     notify_entity,
-    report_from_notification,
     report_from_storage,
 )
 
@@ -34,6 +36,8 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "button"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.last_report"
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 def _same_local_day(report: Report | None, moment: datetime) -> bool:
@@ -109,7 +113,7 @@ class HouseHealthRuntime:
             self._running = False
 
     async def _restore(self) -> None:
-        """Load the newest saved checklist from disk, memory, or the notification."""
+        """Load the newest saved checklist from disk."""
         try:
             stored = await self._store.async_load()
         except Exception:
@@ -119,13 +123,6 @@ class HouseHealthRuntime:
             restored = report_from_storage(stored)
             if restored is not None:
                 self.consider_report(restored)
-        notes = self.hass.data.get("persistent_notification")
-        if isinstance(notes, dict):
-            note = notes.get(NOTIFICATION_ID)
-            if isinstance(note, dict):
-                restored = report_from_notification(note)
-                if restored is not None:
-                    self.consider_report(restored)
         if self.last_report is not None:
             async_dispatcher_send(self.hass, SIGNAL_REPORT)
 
@@ -146,12 +143,29 @@ class HouseHealthRuntime:
             _LOGGER.exception("House health startup check failed")
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+type HouseHealthConfigEntry = ConfigEntry[HouseHealthRuntime]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the report action once, so automations validate before the entry loads."""
+
+    async def _run_service(_call: ServiceCall) -> None:
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.state is ConfigEntryState.LOADED:
+                await entry.runtime_data.async_report()
+                return
+        raise HomeAssistantError("HA Health Check is not loaded")
+
+    hass.services.async_register(DOMAIN, "report", _run_service)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: HouseHealthConfigEntry) -> bool:
     """Set up House Health."""
     if entry.title != "HA Health Check":
         hass.config_entries.async_update_entry(entry, title="HA Health Check")
     runtime = HouseHealthRuntime(hass, entry)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
+    entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def _weekly(now) -> None:
@@ -161,27 +175,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
         await runtime.async_report()
 
-    async def _run_service(_call: ServiceCall) -> None:
-        await runtime.async_report()
-
-    async def _startup(event=None) -> None:
-        await runtime.async_startup(event)
+    async def _startup(_hass: HomeAssistant | None = None) -> None:
+        await runtime.async_startup()
 
     entry.async_on_unload(
         async_track_time_change(hass, _weekly, hour=REPORT_HOUR, minute=REPORT_MINUTE, second=20)
     )
-    hass.services.async_register(DOMAIN, "report", _run_service)
-    entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "report"))
     if hass.is_running:
         entry.async_on_unload(hass.async_create_task(_startup()).cancel)
     else:
-        entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _startup))
+        # async_at_started's cancel is safe after the event fired; a bare listen_once
+        # unsubscribe is not and logs an error when the entry later unloads.
+        entry.async_on_unload(async_at_started(hass, _startup))
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: HouseHealthConfigEntry) -> bool:
     """Unload House Health."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

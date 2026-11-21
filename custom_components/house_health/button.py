@@ -17,7 +17,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Add the run button."""
-    async_add_entities([HouseHealthButton(hass.data[DOMAIN][entry.entry_id])])
+    async_add_entities([HouseHealthButton(entry.runtime_data)])
 
 
 class HouseHealthButton(ButtonEntity):
