@@ -98,6 +98,11 @@ class HouseHealthRuntime:
             except Exception:
                 _LOGGER.exception("House health could not save the notification")
             target = notify_entity(self.entry.options)
+            if not target:
+                _LOGGER.warning(
+                    "House health has no email recipient. Choose one in Configure > Email and critical sensors"
+                )
+                return
             if self.hass.states.get(target) is None:
                 _LOGGER.error("House health could not email %s because it does not exist", target)
                 return

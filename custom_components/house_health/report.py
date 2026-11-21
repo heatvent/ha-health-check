@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from fnmatch import fnmatchcase
 import logging
 import re
 
@@ -91,13 +92,33 @@ def notify_entity(options: dict | None) -> str:
     return EMAIL_ENTITY
 
 
+def critical_key(entity_id: str) -> str | None:
+    """The CRITICAL row id a saved entity id selects (exact, or matching a pattern row)."""
+    for row_id, _label, _states in CRITICAL:
+        if entity_id == row_id or ("*" in row_id and fnmatchcase(entity_id, row_id)):
+            return row_id
+    return None
+
+
 def critical_rows(options: dict | None) -> tuple:
     """Critical sensors to watch. A saved empty list watches none."""
     options = options or {}
     if OPT_CRITICAL_ENTITIES not in options:
         return CRITICAL
-    selected = {str(item) for item in options.get(OPT_CRITICAL_ENTITIES) or []}
+    selected = {critical_key(str(item)) for item in options.get(OPT_CRITICAL_ENTITIES) or []}
     return tuple(row for row in CRITICAL if row[0] in selected)
+
+
+def critical_states(hass: HomeAssistant, row_id: str) -> list[tuple[str, State | None]]:
+    """Entity ids and states for one CRITICAL row; a pattern row expands to every match."""
+    if "*" not in row_id:
+        return [(row_id, hass.states.get(row_id))]
+    domain = row_id.split(".", 1)[0]
+    matches = sorted(
+        (state for state in hass.states.async_all(domain) if fnmatchcase(state.entity_id, row_id)),
+        key=lambda state: state.entity_id,
+    )
+    return [(state.entity_id, state) for state in matches] or [(row_id, None)]
 
 
 def _aware(value: datetime) -> datetime:
@@ -186,16 +207,6 @@ def report_from_values(
         check_count=parsed_check if check is None else check,
         created=_aware(created),
     )
-
-
-def report_from_notification(note: dict) -> Report | None:
-    """Build a report from an in-memory persistent notification."""
-    created = note.get("created_at")
-    if isinstance(created, str):
-        created = dt_util.parse_datetime(created)
-    if not isinstance(created, datetime):
-        return None
-    return report_from_values(note.get("title"), note.get("message") or "", created)
 
 
 def report_from_storage(data: dict) -> Report | None:
@@ -556,16 +567,18 @@ async def async_build_report(hass: HomeAssistant, options: dict | None = None) -
             items.append(Item("check", f"Alert is acknowledged: {state.name}."))
 
     ok = []
-    for entity_id, label, ok_states in critical_rows(options):
-        state = hass.states.get(entity_id)
-        if state is None or state.state in DEAD:
-            items.append(Item("fix", f"{label} is {state.state if state else 'missing'} ({entity_id})."))
-            fix_ids.add(entity_id)
-            continue
-        if state.state.casefold() not in ok_states:
-            items.append(Item("fix", f"{label} is {state.state}."))
-            continue
-        ok.append(label)
+    for row_id, label, ok_states in critical_rows(options):
+        row_ok = True
+        for entity_id, state in critical_states(hass, row_id):
+            if state is None or state.state in DEAD:
+                items.append(Item("fix", f"{label} is {state.state if state else 'missing'} ({entity_id})."))
+                fix_ids.add(entity_id)
+                row_ok = False
+            elif state.state.casefold() not in ok_states:
+                items.append(Item("fix", f"{label} is {state.state}."))
+                row_ok = False
+        if row_ok:
+            ok.append(label)
 
     for state in automations:
         if state.state in DEAD:
