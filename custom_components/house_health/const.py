@@ -12,7 +12,8 @@ REPORT_WEEKDAY = 6
 REPORT_HOUR = 9
 REPORT_MINUTE = 0
 
-EMAIL_ENTITY = "notify.gmail_smtp_matteocp_gmail_com"
+# No default recipient: choose the notify entity in Configure.
+EMAIL_ENTITY = ""
 
 # Integrations that are expected to sit in setup_retry while powered off.
 EXPECTED_OFFLINE_TITLES = frozenset(
@@ -72,7 +73,7 @@ PLATFORM_LABELS = {
 # entity_id, label, states that mean healthy. Any other live state is a fix.
 CRITICAL = (
     ("binary_sensor.hubitat_elevation_hub_status", "Hubitat", frozenset({"on"})),
-    ("binary_sensor.life360_online_matteocp_gmail_com", "Life360", frozenset({"on"})),
+    ("binary_sensor.life360_online_*", "Life360", frozenset({"on"})),
     ("binary_sensor.rachio", "Rachio", frozenset({"on"})),
     ("sensor.server_closet_cyberpower_ups_status", "UPS", frozenset({"online"})),
     (

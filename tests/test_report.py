@@ -79,3 +79,19 @@ def test_short_collapses_whitespace_and_truncates():
     assert _short("a   b\n c") == "a b c"
     out = _short("x" * 300, limit=20)
     assert len(out) == 20 and out.endswith("...")
+
+
+def test_life360_row_is_a_pattern_and_matches_saved_exact_ids():
+    from custom_components.house_health.report import critical_key
+
+    life360 = next(row for row in CRITICAL if row[1] == "Life360")
+    assert "*" in life360[0]
+    # An options save from 1.2.1 stored the exact sensor id; it still selects the row.
+    assert critical_key("binary_sensor.life360_online_someone_example_com") == life360[0]
+    assert critical_rows({OPT_CRITICAL_ENTITIES: ["binary_sensor.life360_online_someone_example_com"]}) == (life360,)
+    assert critical_key("binary_sensor.not_critical") is None
+
+
+def test_no_default_email_recipient():
+    assert EMAIL_ENTITY == ""
+    assert notify_entity(None) == ""

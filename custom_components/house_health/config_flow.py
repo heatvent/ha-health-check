@@ -24,7 +24,7 @@ from .const import (
     OPT_IGNORED_PLATFORMS,
     PLATFORM_LABELS,
 )
-from .report import SKIP
+from .report import SKIP, critical_key
 
 
 def _platform_label(platform: str) -> str:
@@ -133,9 +133,13 @@ class HouseHealthOptionsFlow(OptionsFlow):
                 }
             )
         if OPT_CRITICAL_ENTITIES in saved:
-            critical_default = [
-                entity_id for entity_id in saved.get(OPT_CRITICAL_ENTITIES) or [] if entity_id in known
-            ]
+            critical_default = list(
+                dict.fromkeys(
+                    key
+                    for key in (critical_key(str(item)) for item in saved.get(OPT_CRITICAL_ENTITIES) or [])
+                    if key in known
+                )
+            )
         else:
             critical_default = list(known)
         email_default = saved.get(OPT_EMAIL_ENTITY) or EMAIL_ENTITY
